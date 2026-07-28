@@ -1,0 +1,10 @@
+# SocialMedia - API
+Social Media API using Go
+
+## Techs Stacks
+- Go
+- Postgres
+- Docker
+- Kubernetes
+- Migrate (for migrations)
+- Air (for hot reload)
