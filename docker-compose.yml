@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16.3-alpine
+    ports:
+      - "5432:5432"
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: socialmedia
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data: { }
