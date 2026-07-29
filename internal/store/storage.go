@@ -12,6 +12,7 @@ type Storage struct {
 	}
 	Users interface {
 		Create(ctx context.Context, user *User) error
+		GetUsers(ctx context.Context) ([]User, error)
 	}
 }
 
