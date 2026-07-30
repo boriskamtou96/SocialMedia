@@ -71,3 +71,21 @@ func (s *UsersStore) GetUsers(ctx context.Context) ([]User, error) {
 	}
 	return users, nil
 }
+
+func (s *UsersStore) GetById(ctx context.Context, id int64) (*User, error) {
+	query := `
+		SELECT id, username, email, created_at
+		FROM users
+		WHERE id = $1
+`
+	row := s.db.QueryRowContext(ctx, query, id)
+	user := &User{}
+	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, errors.New("error scanning row")
+	}
+	return user, nil
+}

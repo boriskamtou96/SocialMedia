@@ -37,15 +37,16 @@ func (app *Application) mount() http.Handler {
 
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Route("/v1", func(router chi.Router) {
-		router.Get("/health", app.healthCheckHandler)
+	r.Route("/v1", func(r chi.Router) {
+		r.Get("/health", app.healthCheckHandler)
 
-		router.Route("/users", func(r chi.Router) {
+		r.Route("/users", func(r chi.Router) {
 			r.Post("/", app.createUserHandler)
 			r.Get("/", app.getUsersHandler)
+			r.Get("/{userID}", app.getUserByIdHandler)
 		})
 
-		router.Route("/posts", func(r chi.Router) {
+		r.Route("/posts", func(r chi.Router) {
 			r.Post("/", app.createPostHandler)
 
 			r.Route("/{postID}", func(r chi.Router) {
