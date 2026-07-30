@@ -65,28 +65,28 @@ func (app *Application) getUserByIdHandler(w http.ResponseWriter, r *http.Reques
 	userIdParam := chi.URLParam(r, "userID")
 	userID, err := strconv.ParseInt(userIdParam, 10, 64)
 	if err != nil {
-		ErrorJSON(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid user ID format")
+		app.badRequestError(w, r, errors.New("invalid user ID format"))
 		return
 	}
 
 	user, err := app.store.Users.GetById(ctx, userID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			ErrorJSON(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+			app.notFoundError(w, r, err)
 			return
 		}
 
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 
 	if user == nil {
-		ErrorJSON(w, http.StatusNotFound, "NOT_FOUND", "User not found")
+		app.notFoundError(w, r, errors.New("user not found"))
 		return
 	}
 
 	if err := WriteJSON(w, http.StatusOK, user); err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 

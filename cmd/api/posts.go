@@ -33,12 +33,12 @@ func (app *Application) createPostHandler(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 
 	if err := app.store.Posts.Create(ctx, post); err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 
 	if err := WriteJSON(w, http.StatusCreated, post); err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 }
@@ -47,7 +47,7 @@ func (app *Application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 	postIDParam := chi.URLParam(r, "postID")
 	postID, err := strconv.ParseInt(postIDParam, 10, 64)
 	if err != nil {
-		ErrorJSON(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid post ID format")
+		app.badRequestError(w, r, errors.New("invalid post ID format"))
 		return
 	}
 
@@ -57,15 +57,15 @@ func (app *Application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrNotFound):
-			ErrorJSON(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+			app.notFoundError(w, r, err)
 		default:
-			ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+			app.internalServerError(w, r, err)
 		}
 		return
 	}
 
 	if err := WriteJSON(w, http.StatusOK, post); err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 }
