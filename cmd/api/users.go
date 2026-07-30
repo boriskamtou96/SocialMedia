@@ -11,9 +11,9 @@ import (
 )
 
 type CreateUserPayload struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username string `json:"username" validate:"required,min=1,max=255"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6,max=20"`
 }
 
 func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +21,12 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 
 	var payload CreateUserPayload
 	if err := ReadJSON(w, r, &payload); err != nil {
-		ErrorJSON(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestError(w, r, err)
 		return
 	}
 
@@ -34,12 +39,12 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 
 	err := app.store.Users.Create(ctx, u)
 	if err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 
 	if err := WriteJSON(w, http.StatusCreated, u); err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 }
@@ -49,12 +54,12 @@ func (app *Application) getUsersHandler(w http.ResponseWriter, r *http.Request) 
 
 	users, err := app.store.Users.GetUsers(ctx)
 	if err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 
 	if err := WriteJSON(w, http.StatusOK, users); err != nil {
-		ErrorJSON(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", err.Error())
+		app.internalServerError(w, r, err)
 		return
 	}
 }

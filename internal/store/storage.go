@@ -15,6 +15,9 @@ type Storage struct {
 		GetUsers(ctx context.Context) ([]User, error)
 		GetById(ctx context.Context, id int64) (*User, error)
 	}
+	Comments interface {
+		Create(ctx context.Context, comment *Comment) error
+	}
 }
 
 func NewStorage(db *sql.DB) Storage {
@@ -23,6 +26,9 @@ func NewStorage(db *sql.DB) Storage {
 			db: db,
 		},
 		Users: &UsersStore{
+			db: db,
+		},
+		Comments: &CommentsStore{
 			db: db,
 		},
 	}
