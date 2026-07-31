@@ -13,13 +13,14 @@ var (
 )
 
 type Post struct {
-	ID        int64    `json:"id"`
-	Content   string   `json:"content"`
-	Title     string   `json:"title"`
-	UserID    int64    `json:"userId"`
-	Tags      []string `json:"tags"`
-	CreatedAt string   `json:"createdAt"`
-	UpdatedAt string   `json:"updatedAt"`
+	ID        int64     `json:"id"`
+	Content   string    `json:"content"`
+	Title     string    `json:"title"`
+	UserID    int64     `json:"userId"`
+	Tags      []string  `json:"tags"`
+	CreatedAt string    `json:"createdAt"`
+	UpdatedAt string    `json:"updatedAt"`
+	Comments  []Comment `json:"comments"`
 }
 
 type PostsStore struct {
@@ -72,4 +73,48 @@ func (s *PostsStore) GetById(ctx context.Context, id int64) (*Post, error) {
 	}
 
 	return post, nil
+}
+
+func (s *PostsStore) DeletePostById(ctx context.Context, id int64) error {
+	query := `
+		DELETE FROM posts
+		WHERE id = $1
+`
+	res, err := s.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+
+}
+
+func (s *PostsStore) UpdatePostById(ctx context.Context, post *Post) error {
+	query := `
+	UPDATE posts
+	SET title=$1, content=$2
+	WHERE id = $3
+	`
+
+	res, err := s.db.ExecContext(ctx, query, post.Title, post.Content, post.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
