@@ -50,3 +50,10 @@ func ErrorJSON(w http.ResponseWriter, status int, errorCode string, message stri
 		return
 	}
 }
+
+func JsonResponse(w http.ResponseWriter, status int, Data any) error {
+	type envelope struct {
+		Data any `json:"data"`
+	}
+	return WriteJSON(w, status, &envelope{Data: Data})
+}

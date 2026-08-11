@@ -48,7 +48,7 @@ func (app *Application) createPostHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := WriteJSON(w, http.StatusCreated, post); err != nil {
+	if err := JsonResponse(w, http.StatusCreated, post); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -65,7 +65,7 @@ func (app *Application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	post.Comments = comments
 
-	if err := WriteJSON(w, http.StatusOK, post); err != nil {
+	if err := JsonResponse(w, http.StatusOK, post); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -92,7 +92,7 @@ func (app *Application) deletePostHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := WriteJSON(w, http.StatusOK, map[string]string{"message": "Post deleted successfully"}); err != nil {
+	if err := JsonResponse(w, http.StatusOK, map[string]string{"message": "Post deleted successfully"}); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -128,7 +128,7 @@ func (app *Application) updatePostHandler(w http.ResponseWriter, r *http.Request
 		}
 		return
 	}
-	if err := WriteJSON(w, http.StatusOK, post); err != nil {
+	if err := JsonResponse(w, http.StatusOK, post); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
