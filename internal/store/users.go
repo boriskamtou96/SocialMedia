@@ -25,6 +25,9 @@ func (s *UsersStore) Create(ctx context.Context, user *User) error {
 		RETURNING id, created_at
 	`
 
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
 	err := s.db.QueryRowContext(
 		ctx,
 		query,
@@ -44,7 +47,8 @@ func (s *UsersStore) GetUsers(ctx context.Context) ([]User, error) {
 	SELECT id, username, email, created_at
 	FROM users
 `
-
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
 	stmt, err := s.db.PrepareContext(ctx, query)
 	if err != nil {
 		return nil, errors.New("error preparing query")
@@ -78,6 +82,8 @@ func (s *UsersStore) GetById(ctx context.Context, id int64) (*User, error) {
 		FROM users
 		WHERE id = $1
 `
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
 	row := s.db.QueryRowContext(ctx, query, id)
 	user := &User{}
 	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.CreatedAt)

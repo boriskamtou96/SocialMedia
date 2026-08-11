@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/lib/pq"
 )
 
 var (
-	ErrNotFound = errors.New("resource not found")
+	ErrNotFound  = errors.New("resource not found")
+	QueryTimeOut = 5 * time.Second
 )
 
 type Post struct {
@@ -35,6 +37,9 @@ func (s *PostsStore) Create(ctx context.Context, post *Post) error {
 		RETURNING id, created_at, updated_at
 `
 
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
 	err := s.db.QueryRowContext(
 		ctx,
 		query,
@@ -56,6 +61,9 @@ func (s *PostsStore) GetById(ctx context.Context, id int64) (*Post, error) {
 		FROM posts
 		WHERE id = $1
 `
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
 	row := s.db.QueryRowContext(ctx, query, id)
 
 	post := &Post{}
@@ -82,6 +90,10 @@ func (s *PostsStore) DeletePostById(ctx context.Context, id int64) error {
 		DELETE FROM posts
 		WHERE id = $1
 `
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
 	res, err := s.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
@@ -104,6 +116,9 @@ func (s *PostsStore) UpdatePostById(ctx context.Context, post *Post) error {
 	WHERE id = $3 AND version = $4
 	RETURNING version
 	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
 
 	err := s.db.QueryRowContext(
 		ctx,
