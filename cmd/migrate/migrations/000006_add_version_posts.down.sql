@@ -1,2 +1,2 @@
 ALTER TABLE posts
-DROP COLUMN version;
+DROP COLUMN IF EXISTS version;

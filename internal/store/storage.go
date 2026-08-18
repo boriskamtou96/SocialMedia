@@ -21,6 +21,10 @@ type Storage struct {
 		GetByPostID(ctx context.Context, postID int64) ([]Comment, error)
 		Create(ctx context.Context, user *Comment) error
 	}
+	Followers interface {
+		Follow(ctx context.Context, userID, followerID int64) error
+		UnFollow(ctx context.Context, userID, followerID int64) error
+	}
 }
 
 func NewStorage(db *sql.DB) Storage {
@@ -32,6 +36,9 @@ func NewStorage(db *sql.DB) Storage {
 			db: db,
 		},
 		Comments: &CommentsStore{
+			db: db,
+		},
+		Followers: &FollowerStore{
 			db: db,
 		},
 	}

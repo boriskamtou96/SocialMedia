@@ -1,6 +1,5 @@
 ALTER TABLE posts
-DROP COLUMN tags;
-
+DROP COLUMN IF EXISTS tags;
 
 ALTER TABLE posts
-DROP COLUMN updated_at;
+DROP COLUMN IF EXISTS updated_at;
