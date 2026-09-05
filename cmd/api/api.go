@@ -8,6 +8,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"SocialMedia/docs"
+
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 type Application struct {
@@ -40,6 +44,9 @@ func (app *Application) mount() http.Handler {
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", app.healthCheckHandler)
 
+		// Relative to the mounted route, so the UI works behind any host or proxy.
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/v1/swagger/doc.json")))
+
 		r.Route("/users", func(r chi.Router) {
 			r.Post("/", app.createUserHandler)
 			r.Get("/", app.getUsersHandler)
@@ -52,7 +59,11 @@ func (app *Application) mount() http.Handler {
 				r.Put("/follow", app.followUserHandler)
 				r.Put("/unfollow", app.unFollowUserHandler)
 			})
+			r.Group(func(r chi.Router) {
+				//r.Use(app.authMiddleware)
+				r.Get("/feed", app.getUserFeedHandler)
 
+			})
 		})
 
 		r.Route("/posts", func(r chi.Router) {
@@ -66,12 +77,18 @@ func (app *Application) mount() http.Handler {
 				r.Patch("/", app.updatePostHandler)
 			})
 		})
+
 	})
 
 	return r
 }
 
 func (app *Application) run(mux http.Handler) error {
+
+	// docs
+	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Title = "Social Media API"
+	docs.SwaggerInfo.Description = "A social media API built with Go, Chi and PostgreSQL."
 
 	srv := &http.Server{
 		Addr:         app.config.addr,

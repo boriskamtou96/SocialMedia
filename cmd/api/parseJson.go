@@ -34,12 +34,19 @@ func ReadJSON(w http.ResponseWriter, r *http.Request, data any) error {
 	return decoder.Decode(data)
 }
 
+// ErrorResponse is the body returned by every failing endpoint.
+type ErrorResponse struct {
+	Status    int    `json:"status" example:"400"`
+	ErrorCode string `json:"errorCode" example:"BAD_REQUEST"`
+	Message   string `json:"message" example:"invalid user ID format"`
+}
+
+// Envelope wraps every successful payload under a "data" key.
+type Envelope struct {
+	Data any `json:"data"`
+}
+
 func ErrorJSON(w http.ResponseWriter, status int, errorCode string, message string) {
-	type ErrorResponse struct {
-		Status    int    `json:"status"`
-		ErrorCode string `json:"errorCode"`
-		Message   string `json:"message"`
-	}
 	errorResponse := ErrorResponse{
 		Status:    status,
 		ErrorCode: errorCode,
@@ -52,8 +59,5 @@ func ErrorJSON(w http.ResponseWriter, status int, errorCode string, message stri
 }
 
 func JsonResponse(w http.ResponseWriter, status int, Data any) error {
-	type envelope struct {
-		Data any `json:"data"`
-	}
-	return WriteJSON(w, status, &envelope{Data: Data})
+	return WriteJSON(w, status, &Envelope{Data: Data})
 }

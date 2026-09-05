@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -24,6 +25,12 @@ type Post struct {
 	UpdatedAt string    `json:"updatedAt"`
 	Version   int       `json:"version"`
 	Comments  []Comment `json:"comments"`
+	User      User      `json:"user"`
+}
+
+type PostWithMetaData struct {
+	Post
+	CommentCount int `json:"comments_count"`
 }
 
 type PostsStore struct {
@@ -137,4 +144,61 @@ func (s *PostsStore) UpdatePostById(ctx context.Context, post *Post) error {
 		}
 	}
 	return nil
+}
+
+func (s *PostsStore) GetUserFeed(ctx context.Context, userID int64, fq PaginatedFeedQuery) ([]*PostWithMetaData, error) {
+	// 1. Sécuriser et normaliser la direction du tri
+	sortOrder := "DESC"
+	if strings.ToLower(fq.Sort) == "asc" {
+		sortOrder = "ASC"
+	}
+
+	// 2. Requête SQL (avec injection propre du mot-clé ASC/DESC)
+	query := `
+       SELECT p.id, p.content, p.title, p.user_id, p.tags, p.created_at,
+              COUNT(c.id) AS comments_count
+       FROM posts p
+       LEFT JOIN comments c  ON p.id = c.post_id
+       LEFT JOIN followers f ON f.follower_id = p.user_id
+       WHERE 
+        f.user_id = $1 AND
+		(p.title ILIKE '%' || $4 || '%' OR p.content ILIKE '%' || $4 || '%') 
+       GROUP BY p.id
+       ORDER BY p.created_at ` + sortOrder + `
+       LIMIT $2 OFFSET $3
+    `
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
+	// 3. Passage exact des 3 paramètres correspondant à $1, $2 et $3
+	rows, err := s.db.QueryContext(ctx, query, userID, fq.Limit, fq.Offset, fq.Search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []*PostWithMetaData
+	for rows.Next() {
+		post := &PostWithMetaData{}
+		err := rows.Scan(
+			&post.ID,
+			&post.Content,
+			&post.Title,
+			&post.UserID,
+			pq.Array(&post.Tags),
+			&post.CreatedAt,
+			&post.CommentCount,
+		)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, post)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return posts, nil
 }

@@ -22,6 +22,18 @@ type CreateUserPayload struct {
 	Password string `json:"password" validate:"required,min=6,max=20"`
 }
 
+// createUserHandler godoc
+//
+//	@Summary		Create a user
+//	@Description	Registers a new account. The password is never returned.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreateUserPayload	true	"Account details"
+//	@Success		201		{object}	Envelope{data=store.User}
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users [post]
 func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -55,6 +67,14 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// getUsersHandler godoc
+//
+//	@Summary	List users
+//	@Tags		users
+//	@Produce	json
+//	@Success	200	{object}	Envelope{data=[]store.User}
+//	@Failure	500	{object}	ErrorResponse
+//	@Router		/users [get]
 func (app *Application) getUsersHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -70,6 +90,17 @@ func (app *Application) getUsersHandler(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// getUserByIdHandler godoc
+//
+//	@Summary	Fetch a user
+//	@Tags		users
+//	@Produce	json
+//	@Param		userID	path		int	true	"User ID"
+//	@Success	200		{object}	Envelope{data=store.User}
+//	@Failure	400		{object}	ErrorResponse
+//	@Failure	404		{object}	ErrorResponse
+//	@Failure	500		{object}	ErrorResponse
+//	@Router		/users/{userID} [get]
 func (app *Application) getUserByIdHandler(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromContext(r)
 
@@ -84,6 +115,20 @@ type FollowUser struct {
 	UserID int64 `json:"user_id"`
 }
 
+// followUserHandler godoc
+//
+//	@Summary		Follow a user
+//	@Description	The user in the path starts following the user in the body.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			userID	path	int			true	"Follower user ID"
+//	@Param			payload	body	FollowUser	true	"User to follow"
+//	@Success		204		"No content"
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users/{userID}/follow [put]
 func (app *Application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	followerUser := getUserFromContext(r)
 
@@ -119,6 +164,19 @@ func (app *Application) followUserHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// unFollowUserHandler godoc
+//
+//	@Summary	Unfollow a user
+//	@Tags		users
+//	@Accept		json
+//	@Produce	json
+//	@Param		userID	path	int			true	"Follower user ID"
+//	@Param		payload	body	FollowUser	true	"User to unfollow"
+//	@Success	204		"No content"
+//	@Failure	400		{object}	ErrorResponse
+//	@Failure	404		{object}	ErrorResponse
+//	@Failure	500		{object}	ErrorResponse
+//	@Router		/users/{userID}/unfollow [put]
 func (app *Application) unFollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	unFollowerUser := getUserFromContext(r)
 

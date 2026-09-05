@@ -21,6 +21,17 @@ type UpdatePostPayload struct {
 	Content *string `json:"content" validate:"required,min=20,max=1000"`
 }
 
+// createPostHandler godoc
+//
+//	@Summary	Create a post
+//	@Tags		posts
+//	@Accept		json
+//	@Produce	json
+//	@Param		payload	body		CreatePostPayload	true	"Post to create"
+//	@Success	201		{object}	Envelope{data=store.Post}
+//	@Failure	400		{object}	ErrorResponse
+//	@Failure	500		{object}	ErrorResponse
+//	@Router		/posts [post]
 func (app *Application) createPostHandler(w http.ResponseWriter, r *http.Request) {
 	var payload CreatePostPayload
 
@@ -54,6 +65,18 @@ func (app *Application) createPostHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// getPostHandler godoc
+//
+//	@Summary		Fetch a post
+//	@Description	Returns the post along with its comments.
+//	@Tags			posts
+//	@Produce		json
+//	@Param			postID	path		int	true	"Post ID"
+//	@Success		200		{object}	Envelope{data=store.Post}
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts/{postID} [get]
 func (app *Application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 	post := getPostFromCtx(r)
 
@@ -71,6 +94,17 @@ func (app *Application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// deletePostHandler godoc
+//
+//	@Summary	Delete a post
+//	@Tags		posts
+//	@Produce	json
+//	@Param		postID	path		int	true	"Post ID"
+//	@Success	200		{object}	Envelope{data=map[string]string}
+//	@Failure	400		{object}	ErrorResponse
+//	@Failure	404		{object}	ErrorResponse
+//	@Failure	500		{object}	ErrorResponse
+//	@Router		/posts/{postID} [delete]
 func (app *Application) deletePostHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -98,6 +132,20 @@ func (app *Application) deletePostHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// updatePostHandler godoc
+//
+//	@Summary		Update a post
+//	@Description	Only the fields present in the body are modified.
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			postID	path		int					true	"Post ID"
+//	@Param			payload	body		UpdatePostPayload	true	"Fields to update"
+//	@Success		200		{object}	Envelope{data=store.Post}
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts/{postID} [patch]
 func (app *Application) updatePostHandler(w http.ResponseWriter, r *http.Request) {
 	post := getPostFromCtx(r)
 
