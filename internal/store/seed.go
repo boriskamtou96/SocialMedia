@@ -2,23 +2,28 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"math/rand"
 
 	"github.com/bxcodec/faker/v4"
 )
 
-func Seed(store Storage) {
+func Seed(store Storage, db *sql.DB) {
 	ctx := context.Background()
 
 	users := generateUsers(100)
+	tx, _ := db.BeginTx(ctx, nil)
 	for _, user := range users {
-		err := store.Users.Create(ctx, nil, user)
+		err := store.Users.Create(ctx, tx, user)
 		if err != nil {
+			tx.Rollback()
 			log.Println("error creating user:", err)
 			return
 		}
 	}
+
+	tx.Commit()
 
 	posts := generatePosts(200, users)
 	for _, post := range posts {

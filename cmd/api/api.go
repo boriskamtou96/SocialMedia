@@ -54,6 +54,8 @@ func (app *Application) mount() http.Handler {
 		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/v1/swagger/doc.json")))
 
 		r.Route("/users", func(r chi.Router) {
+			r.Put("/activate/{token}", app.activateUserHandler)
+
 			r.Post("/", app.createUserHandler)
 			r.Get("/", app.getUsersHandler)
 
@@ -86,7 +88,7 @@ func (app *Application) mount() http.Handler {
 
 		// Public routes
 		r.Route("/authentication", func(r chi.Router) {
-			r.Post("/user", app.registerUserHandler)
+			r.Post("/user", app.createUserHandler)
 		})
 	})
 
@@ -108,7 +110,7 @@ func (app *Application) run(mux http.Handler) error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	app.logger.Infow("Starting server at %s...", app.config.addr)
+	app.logger.Infof("Starting server at %s...", app.config.addr)
 
 	return srv.ListenAndServe()
 }

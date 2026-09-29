@@ -3,13 +3,17 @@ package main
 import (
 	"SocialMedia/internal/store"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type userKey string
@@ -20,56 +24,6 @@ type CreateUserPayload struct {
 	Username string `json:"username" validate:"required,min=1,max=255"`
 	Email    string `json:"email" validate:"required,email,max=255"`
 	Password string `json:"password" validate:"required,min=6,max=72"`
-}
-
-// registerUserHandler godoc
-//
-//	@Summary		Register a user
-//	@Description	Registers a new account. The password is never returned.
-//	@Tags			users
-//	@Accept			json
-//	@Produce		json
-//	@Param			payload	body		CreateUserPayload	true	"Account details"
-//	@Success		201		{object}	Envelope{data=store.User}
-//	@Failure		400		{object}	ErrorResponse
-//	@Failure		500		{object}	ErrorResponse
-//	@Router			/users/register [post]
-func (app *Application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
-	var payload CreateUserPayload
-	if err := ReadJSON(w, r, &payload); err != nil {
-		app.badRequestError(w, r, err)
-		return
-	}
-
-	if err := Validate.Struct(payload); err != nil {
-		app.badRequestError(w, r, err)
-		return
-	}
-
-	u := &store.User{
-		Username:  payload.Username,
-		Email:     payload.Email,
-		CreatedAt: time.Now().String(),
-	}
-
-	// Hash the user password
-	err := u.Password.Set(payload.Password)
-	if err != nil {
-		app.internalServerError(w, r, err)
-		return
-	}
-
-	ctx := r.Context()
-	err = app.store.Users.Create(ctx, u)
-	if err != nil {
-		app.internalServerError(w, r, err)
-		return
-	}
-
-	if err := JsonResponse(w, http.StatusCreated, u); err != nil {
-		app.internalServerError(w, r, err)
-		return
-	}
 }
 
 // createUserHandler godoc
@@ -110,12 +64,16 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err = app.store.Users.CreateAndInvite(ctx, u, "some-invite-token", app.config.mail.exp)
+	plainToken := uuid.New().String() // Generate a new UUID for the invitation token
+	hash := sha256.Sum256([]byte(plainToken))
+	hashToken := hex.EncodeToString(hash[:])
+
+	err = app.store.Users.CreateAndInvite(ctx, u, hashToken, app.config.mail.exp)
 	if err != nil {
-		switch err {
-		case errors.New("username already exists"):
+		switch {
+		case errors.Is(err, store.ErrDuplicateUsername):
 			app.badRequestError(w, r, err)
-		case errors.New("email already exists"):
+		case errors.Is(err, store.ErrDuplicateEmail):
 			app.badRequestError(w, r, err)
 		default:
 			app.internalServerError(w, r, err)
@@ -123,16 +81,49 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err = app.store.Users.Create(ctx, u)
-	if err != nil {
-		app.internalServerError(w, r, err)
-		return
-	}
+	fmt.Println("Activation Token (send this to the user via email):", plainToken)
 
 	if err := JsonResponse(w, http.StatusCreated, u); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
+}
+
+// activateUserHandler godoc
+//
+//	@Summary	Activate a user
+//	@Description	Activates a user account using the provided activation token.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			activationToken	path	string	true	"Activation Token"
+//	@Success		204				"No content"
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Failure		500				{object}	ErrorResponse
+//	@Router			/users/activate/{token} [put]
+func (app *Application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		app.badRequestError(w, r, errors.New("activation token is required"))
+		return
+	}
+
+	err := app.store.Users.Activate(ctx, token)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			app.notFoundError(w, r, err)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+
+	// 204 must not carry a body, so no JsonResponse here
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // getUsersHandler godoc

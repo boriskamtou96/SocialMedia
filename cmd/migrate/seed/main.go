@@ -16,5 +16,5 @@ func main() {
 	// For example, you can create users, posts, and comments
 	store := store2.NewStorage(conn)
 	// Create a user
-	store2.Seed(store)
+	store2.Seed(store, conn)
 }

@@ -2,11 +2,19 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"time"
 
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	ErrDuplicateEmail    = errors.New("a user with that email already exists")
+	ErrDuplicateUsername = errors.New("a user with that username already exists")
 )
 
 type User struct {
@@ -15,6 +23,7 @@ type User struct {
 	Email     string   `json:"email"`
 	Password  Password `json:"-"`
 	CreatedAt string   `json:"created_at"`
+	IsActive  bool     `json:"is_active"`
 }
 
 type Password struct {
@@ -54,13 +63,18 @@ func (s *UsersStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 		user.Password.hash,
 	).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
+		if pqErr, ok := errors.AsType[*pq.Error](err); ok && pqErr.Code == "23505" {
+			switch pqErr.Constraint {
+			case "users_email_key":
+				return ErrDuplicateEmail
+			case "users_username_key":
+				return ErrDuplicateUsername
+			}
+		}
+
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			return errors.New("no rows returned")
-		case err.Error() == "pq: duplicate key value violates unique constraint \"users_username_key\"":
-			return errors.New("username already exists")
-		case err.Error() == "pq: duplicate key value violates unique constraint \"users_email_key\"":
-			return errors.New("email already exists")
 		default:
 			return err
 		}
@@ -153,4 +167,94 @@ func (s *UsersStore) createUserInvitation(ctx context.Context, tx *sql.Tx, token
 		return err
 	}
 	return nil
+}
+
+func (s *UsersStore) Activate(ctx context.Context, token string) error {
+	return withTx(ctx, s.db, func(tx *sql.Tx) error {
+
+		// first, check if the user exists and the token is valid
+		user, err := s.getUserFromInvitationToken(ctx, tx, token)
+		if err != nil {
+			return err
+		}
+
+		user.IsActive = true
+
+		// then, update the user to set is_active to true
+		err = s.update(ctx, tx, user)
+		if err != nil {
+			return err
+		}
+
+		// finally, delete the invitation
+		err = s.deleteUserInvitation(ctx, tx, user.ID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (s *UsersStore) deleteUserInvitation(ctx context.Context, tx *sql.Tx, userID int64) error {
+	query := `
+		DELETE FROM invitations
+		WHERE user_id = $1
+	`
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
+	_, err := tx.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *UsersStore) update(ctx context.Context, tx *sql.Tx, user *User) error {
+	query := `
+		UPDATE users
+		SET username = $1, email = $2, is_active = $3
+		WHERE id = $4
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
+	_, err := tx.ExecContext(ctx, query, user.Username, user.Email, user.IsActive, user.ID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *UsersStore) getUserFromInvitationToken(ctx context.Context, tx *sql.Tx, token string) (*User, error) {
+	query := `
+		SELECT u.id, u.username, u.email, u.created_at
+		FROM users u
+		JOIN invitations i ON u.id = i.user_id
+		WHERE i.token = $1 AND i.expiry > $2
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
+	hash := sha256.Sum256([]byte(token))
+	hashToken := hex.EncodeToString(hash[:])
+
+	user := &User{}
+	row := tx.QueryRowContext(ctx, query, hashToken, time.Now())
+
+	err := row.Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, errors.New("error scanning row")
+	}
+	return user, nil
 }
