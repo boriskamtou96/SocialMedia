@@ -13,7 +13,7 @@ func Seed(store Storage) {
 
 	users := generateUsers(100)
 	for _, user := range users {
-		err := store.Users.Create(ctx, user)
+		err := store.Users.Create(ctx, nil, user)
 		if err != nil {
 			log.Println("error creating user:", err)
 			return
@@ -48,11 +48,12 @@ func generateUsers(count int) []*User {
 		users[i] = &User{
 			Username: "",
 			Email:    "",
-			Password: "",
 		}
 		users[i].Username = faker.Username()
 		users[i].Email = faker.Email()
-		users[i].Password = faker.Password()
+		if err := users[i].Password.Set(faker.Password()); err != nil {
+			log.Fatal("error hashing password:", err)
+		}
 	}
 	return users
 

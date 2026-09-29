@@ -5,6 +5,9 @@ import (
 	"SocialMedia/internal/env"
 	"SocialMedia/internal/store"
 	"log"
+	"time"
+
+	"go.uber.org/zap"
 )
 
 // @title        Social Media API
@@ -35,8 +38,16 @@ func main() {
 			maxIdleConn: env.GetInt("DB_MAX_IDLE_CONNS", 25),
 			maxIdleTime: env.GetString("BD_MAX_IDLE_TIME", "15m"),
 		},
+		mail: MailConfig{
+			exp: time.Hour * 24 * 3,
+		},
 	}
 
+	// Logger
+	logger := zap.Must(zap.NewProduction()).Sugar()
+	defer logger.Sync()
+
+	// Database connection
 	database, err := db.New(
 		cfg.dbConfig.addr,
 		cfg.dbConfig.maxOpenConn,
@@ -44,7 +55,7 @@ func main() {
 		cfg.dbConfig.maxIdleTime,
 	)
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 	defer func() {
 		err := database.Close()
@@ -53,13 +64,14 @@ func main() {
 		}
 	}()
 
-	log.Println("Database connection established...")
+	logger.Info("Database connection established...")
 
 	storage := store.NewStorage(database)
 
 	app := &Application{
 		config: cfg,
 		store:  storage,
+		logger: logger,
 	}
 
 	mux := app.mount()

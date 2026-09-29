@@ -18,8 +18,58 @@ const userCtx userKey = "user"
 
 type CreateUserPayload struct {
 	Username string `json:"username" validate:"required,min=1,max=255"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=6,max=20"`
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=6,max=72"`
+}
+
+// registerUserHandler godoc
+//
+//	@Summary		Register a user
+//	@Description	Registers a new account. The password is never returned.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreateUserPayload	true	"Account details"
+//	@Success		201		{object}	Envelope{data=store.User}
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/users/register [post]
+func (app *Application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
+	var payload CreateUserPayload
+	if err := ReadJSON(w, r, &payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	u := &store.User{
+		Username:  payload.Username,
+		Email:     payload.Email,
+		CreatedAt: time.Now().String(),
+	}
+
+	// Hash the user password
+	err := u.Password.Set(payload.Password)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	ctx := r.Context()
+	err = app.store.Users.Create(ctx, u)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	if err := JsonResponse(w, http.StatusCreated, u); err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
 }
 
 // createUserHandler godoc
@@ -51,11 +101,29 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 	u := &store.User{
 		Username:  payload.Username,
 		Email:     payload.Email,
-		Password:  payload.Password,
 		CreatedAt: time.Now().String(),
 	}
 
-	err := app.store.Users.Create(ctx, u)
+	err := u.Password.Set(payload.Password)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	err = app.store.Users.CreateAndInvite(ctx, u, "some-invite-token", app.config.mail.exp)
+	if err != nil {
+		switch err {
+		case errors.New("username already exists"):
+			app.badRequestError(w, r, err)
+		case errors.New("email already exists"):
+			app.badRequestError(w, r, err)
+		default:
+			app.internalServerError(w, r, err)
+		}
+		return
+	}
+
+	err = app.store.Users.Create(ctx, u)
 	if err != nil {
 		app.internalServerError(w, r, err)
 		return

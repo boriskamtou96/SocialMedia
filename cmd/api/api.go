@@ -2,12 +2,12 @@ package main
 
 import (
 	"SocialMedia/internal/store"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/zap"
 
 	"SocialMedia/docs"
 
@@ -17,11 +17,17 @@ import (
 type Application struct {
 	config Config
 	store  store.Storage
+	logger *zap.SugaredLogger
+}
+
+type MailConfig struct {
+	exp time.Duration
 }
 
 type Config struct {
 	addr     string
 	dbConfig DBConfig
+	mail     MailConfig
 }
 
 type DBConfig struct {
@@ -78,6 +84,10 @@ func (app *Application) mount() http.Handler {
 			})
 		})
 
+		// Public routes
+		r.Route("/authentication", func(r chi.Router) {
+			r.Post("/user", app.registerUserHandler)
+		})
 	})
 
 	return r
@@ -98,7 +108,7 @@ func (app *Application) run(mux http.Handler) error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Printf("Starting server at %s...", app.config.addr)
+	app.logger.Infow("Starting server at %s...", app.config.addr)
 
 	return srv.ListenAndServe()
 }
