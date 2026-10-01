@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SocialMedia/internal/mailer"
 	"SocialMedia/internal/store"
 	"context"
 	"crypto/sha256"
@@ -82,6 +83,23 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	fmt.Println("Activation Token (send this to the user via email):", plainToken)
+	vars := struct {
+		Username      string
+		ActivationURL string
+	}{
+		Username:      u.Username,
+		ActivationURL: fmt.Sprintf("%s/confirm/%s", app.config.frontendURL, plainToken),
+	}
+	err = app.mailer.Send(mailer.UserInvitationTemplate, u.Username, u.Email, vars, false)
+	if err != nil {
+		app.logger.Errorw("failed to send activation email", "error", err, "userID", u.ID, "email", u.Email)
+		// rollback user creation if email sending fails
+		if rollbackErr := app.store.Users.DeleteById(ctx, u.ID); rollbackErr != nil {
+			app.logger.Errorw("failed to rollback user creation", "error", rollbackErr, "userID", u.ID)
+		}
+		app.internalServerError(w, r, err)
+		return
+	}
 
 	if err := JsonResponse(w, http.StatusCreated, u); err != nil {
 		app.internalServerError(w, r, err)

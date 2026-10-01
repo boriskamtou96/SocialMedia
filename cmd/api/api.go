@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SocialMedia/internal/mailer"
 	"SocialMedia/internal/store"
 	"net/http"
 	"time"
@@ -18,16 +19,25 @@ type Application struct {
 	config Config
 	store  store.Storage
 	logger *zap.SugaredLogger
+	mailer mailer.Client
 }
 
 type MailConfig struct {
-	exp time.Duration
+	exp       time.Duration
+	fromEmail string
+	sendgrid  SendGridConfig
+}
+
+type SendGridConfig struct {
+	apiKey string
 }
 
 type Config struct {
-	addr     string
-	dbConfig DBConfig
-	mail     MailConfig
+	addr        string
+	dbConfig    DBConfig
+	mail        MailConfig
+	mailer      mailer.Client
+	frontendURL string
 }
 
 type DBConfig struct {

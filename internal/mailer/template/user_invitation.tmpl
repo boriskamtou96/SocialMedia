@@ -1,0 +1,72 @@
+{{/*
+  Data expected by this template:
+    .Username       the recipient's username
+    .ActivationURL  the full activation link (frontend URL + plain invitation token)
+*/}}
+{{define "subject"}}Finish registration with GopherSocial{{end}}
+
+{{define "body"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Finish registration with GopherSocial</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f2f5f7;">
+  <!-- Preview text shown by mail clients next to the subject -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
+    Confirm your email address to activate your GopherSocial account.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f5f7;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px; background-color:#ffffff; border:1px solid #dfe5ea; border-radius:8px;">
+          <tr>
+            <td style="padding:28px 32px 0 32px; font-family:Arial, Helvetica, sans-serif; font-size:20px; font-weight:bold; color:#007d9c;">
+              GopherSocial
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 32px 0 32px; font-family:Arial, Helvetica, sans-serif; font-size:16px; line-height:24px; color:#1d2830;">
+              <p style="margin:0 0 16px 0;">Hi {{.Username}},</p>
+              <p style="margin:0 0 16px 0;">Thanks for signing up for GopherSocial. We're excited to have you on board!</p>
+              <p style="margin:0 0 24px 0;">Before you can start using your account, please confirm your email address by clicking the button below.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 24px 32px;">
+              <a href="{{.ActivationURL}}" style="display:inline-block; padding:12px 24px; background-color:#007d9c; border-radius:6px; font-family:Arial, Helvetica, sans-serif; font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none;">Activate my account</a>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 24px 32px; font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; color:#56636d;">
+              <p style="margin:0 0 8px 0;">If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="margin:0; word-break:break-all;"><a href="{{.ActivationURL}}" style="color:#007d9c;">{{.ActivationURL}}</a></p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:16px 32px 28px 32px; border-top:1px solid #dfe5ea; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:20px; color:#56636d;">
+              <p style="margin:0 0 8px 0;">This link is only valid for a limited time.</p>
+              <p style="margin:0;">If you didn't sign up for GopherSocial, you can safely ignore this email.</p>
+            </td>
+          </tr>
+        </table>
+
+        <p style="margin:16px 0 0 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#7d8992;">
+          Thanks, the GopherSocial team
+        </p>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+{{end}}

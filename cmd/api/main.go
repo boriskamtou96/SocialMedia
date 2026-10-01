@@ -3,6 +3,7 @@ package main
 import (
 	"SocialMedia/internal/db"
 	"SocialMedia/internal/env"
+	"SocialMedia/internal/mailer"
 	"SocialMedia/internal/store"
 	"log"
 	"time"
@@ -39,8 +40,13 @@ func main() {
 			maxIdleTime: env.GetString("BD_MAX_IDLE_TIME", "15m"),
 		},
 		mail: MailConfig{
-			exp: time.Hour * 24 * 3,
+			exp:       time.Hour * 24 * 3,
+			fromEmail: env.GetString("FROM_EMAIL", "boriskamtou@gmail.com"),
+			sendgrid: SendGridConfig{
+				apiKey: env.GetString("SENDGRID_API_KEY", ""),
+			},
 		},
+		frontendURL: env.GetString("FRONTEND_URL", "http://localhost:3000"),
 	}
 
 	// Logger
@@ -68,10 +74,13 @@ func main() {
 
 	storage := store.NewStorage(database)
 
+	mailer := mailer.NewSendgrid(cfg.mail.sendgrid.apiKey, cfg.mail.fromEmail)
+
 	app := &Application{
 		config: cfg,
 		store:  storage,
 		logger: logger,
+		mailer: mailer,
 	}
 
 	mux := app.mount()
