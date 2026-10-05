@@ -41,6 +41,11 @@ func (s *Password) Set(text string) error {
 	return nil
 }
 
+// Compare vérifie si le texte en clair correspond au hash stocké
+func (p *Password) Compare(text string) error {
+	return bcrypt.CompareHashAndPassword(p.hash, []byte(text))
+}
+
 type UsersStore struct {
 	db *sql.DB
 }
@@ -286,4 +291,32 @@ func (s *UsersStore) delete(ctx context.Context, tx *sql.Tx, id int64) error {
 		return err
 	}
 	return nil
+}
+
+func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	query := `
+		SELECT id, username, email, created_at
+		FROM users
+		WHERE email = $1 AND is_active = true
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
+	defer cancel()
+
+	user := &User{}
+	row := s.db.QueryRowContext(ctx, query, email)
+
+	err := row.Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, errors.New("error scanning row")
+	}
+	return user, nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SocialMedia/internal/auth"
 	"SocialMedia/internal/db"
 	"SocialMedia/internal/env"
 	"SocialMedia/internal/mailer"
@@ -46,7 +47,19 @@ func main() {
 				apiKey: env.GetString("SENDGRID_API_KEY", ""),
 			},
 		},
-		frontendURL: env.GetString("FRONTEND_URL", "http://localhost:3000"),
+		frontendURL: env.GetString("FRONTEND_URL", "http://localhost:5173"),
+		auth: AuthConfig{
+			basic: BasicAuthConfig{
+				user:     env.GetString("BASIC_AUTH_USER", "admin"),
+				password: env.GetString("BASIC_AUTH_PASSWORD", "admin"),
+			},
+			token: TokenConfig{
+				secret:   env.GetString("JWT_SECRET", "your-secret-key"),
+				audience: env.GetString("JWT_AUDIENCE", "GopherSocialMedia"),
+				issuer:   env.GetString("JWT_ISSUER", "GopherSocialMedia"),
+				exp:      time.Hour * 24 * 3,
+			},
+		},
 	}
 
 	// Logger
@@ -76,11 +89,18 @@ func main() {
 
 	mailer := mailer.NewSendgrid(cfg.mail.sendgrid.apiKey, cfg.mail.fromEmail)
 
+	jwtAuthenticator := auth.NewJWTAuthenticator(
+		cfg.auth.token.secret,
+		cfg.auth.token.audience,
+		cfg.auth.token.issuer,
+	)
+
 	app := &Application{
-		config: cfg,
-		store:  storage,
-		logger: logger,
-		mailer: mailer,
+		config:        cfg,
+		store:         storage,
+		logger:        logger,
+		mailer:        mailer,
+		authenticator: jwtAuthenticator,
 	}
 
 	mux := app.mount()

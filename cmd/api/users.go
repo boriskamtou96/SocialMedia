@@ -8,12 +8,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -90,7 +90,7 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 		Username:      u.Username,
 		ActivationURL: fmt.Sprintf("%s/confirm/%s", app.config.frontendURL, plainToken),
 	}
-	err = app.mailer.Send(mailer.UserInvitationTemplate, u.Username, u.Email, vars, false)
+	status, err := app.mailer.Send(mailer.UserInvitationTemplate, u.Username, u.Email, vars, false)
 	if err != nil {
 		app.logger.Errorw("failed to send activation email", "error", err, "userID", u.ID, "email", u.Email)
 		// rollback user creation if email sending fails
@@ -100,6 +100,8 @@ func (app *Application) createUserHandler(w http.ResponseWriter, r *http.Request
 		app.internalServerError(w, r, err)
 		return
 	}
+
+	app.logger.Infow("activation email sent with status", "userID", u.ID, "email", u.Email, "status", status)
 
 	if err := JsonResponse(w, http.StatusCreated, u); err != nil {
 		app.internalServerError(w, r, err)
@@ -208,6 +210,16 @@ type FollowUser struct {
 //	@Router			/users/{userID}/follow [put]
 func (app *Application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	followerUser := getUserFromContext(r)
+	if followerUser == nil {
+		app.unauthorizedError(w, r, errors.New("user not found in context"))
+		return
+	}
+
+	followedID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		app.badRequestError(w, r, errors.New("invalid user ID format"))
+		return
+	}
 
 	var payload FollowUser
 	if err := ReadJSON(w, r, &payload); err != nil {
@@ -218,9 +230,8 @@ func (app *Application) followUserHandler(w http.ResponseWriter, r *http.Request
 
 	userID := payload.UserID
 
-	log.Println("User Id:", userID)
 	// Check if the user to be followed exists
-	_, err := app.store.Users.GetById(ctx, userID)
+	_, err = app.store.Users.GetById(ctx, userID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			app.badRequestError(w, r, errors.New("user to follow does not exist"))
@@ -230,7 +241,7 @@ func (app *Application) followUserHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := app.store.Followers.Follow(ctx, followerUser.ID, userID); err != nil {
+	if err := app.store.Followers.Follow(ctx, followerUser.ID, followedID); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -255,7 +266,17 @@ func (app *Application) followUserHandler(w http.ResponseWriter, r *http.Request
 //	@Failure	500		{object}	ErrorResponse
 //	@Router		/users/{userID}/unfollow [put]
 func (app *Application) unFollowUserHandler(w http.ResponseWriter, r *http.Request) {
-	unFollowerUser := getUserFromContext(r)
+	followerUser := getUserFromContext(r)
+	if followerUser == nil {
+		app.unauthorizedError(w, r, errors.New("user not found in context"))
+		return
+	}
+
+	unFollowedID, err := strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
+	if err != nil {
+		app.badRequestError(w, r, errors.New("invalid user ID format"))
+		return
+	}
 
 	var payload FollowUser
 	if err := ReadJSON(w, r, &payload); err != nil {
@@ -264,8 +285,7 @@ func (app *Application) unFollowUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 	ctx := r.Context()
 
-	userID := payload.UserID
-	if err := app.store.Followers.UnFollow(ctx, unFollowerUser.ID, userID); err != nil {
+	if err := app.store.Followers.UnFollow(ctx, followerUser.ID, unFollowedID); err != nil {
 		app.internalServerError(w, r, err)
 		return
 	}
@@ -309,4 +329,72 @@ func getUserFromContext(r *http.Request) *store.User {
 		return nil
 	}
 	return user
+}
+
+type CreateUserTokenPayload struct {
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=6,max=72"`
+}
+
+// createTokenHandler godoc
+//
+//	@Summary		Create an authentication token
+//	@Description	Generates a new authentication token for a user.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		CreateUserTokenPayload	true	"User credentials"
+//	@Success		200		{object}	TokenResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/authentication/token [post]
+func (app *Application) createTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// parse payload credentials
+	var payload CreateUserTokenPayload
+	if err := ReadJSON(w, r, &payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(payload); err != nil {
+		app.badRequestError(w, r, err)
+		return
+	}
+	// fetch the user (check if the user exists) from the payload
+	user, err := app.store.Users.GetUserByEmail(r.Context(), payload.Email)
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			app.unauthorizedError(w, r, errors.New("invalid credentials"))
+			return
+		default:
+			app.internalServerError(w, r, err)
+			return
+		}
+	}
+
+	if err := user.Password.Compare(payload.Password); err != nil {
+		app.unauthorizedError(w, r, errors.New("invalid credentials"))
+		return
+	}
+
+	// generate the token -> add claims
+	claims := jwt.MapClaims{
+		"sub":   user.ID,
+		"email": user.Email,
+		"exp":   time.Now().Add(app.config.auth.token.exp).Unix(),
+		"iat":   time.Now().Unix(),
+		"iss":   "SocialMediaApp",
+	}
+	token, err := app.authenticator.GenerateToken(claims)
+	if err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
+
+	if err := JsonResponse(w, http.StatusOK, map[string]string{"token": token}); err != nil {
+		app.internalServerError(w, r, err)
+		return
+	}
 }

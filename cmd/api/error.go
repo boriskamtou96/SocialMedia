@@ -18,3 +18,8 @@ func (app *Application) badRequestError(w http.ResponseWriter, r *http.Request, 
 	app.logger.Errorf("bad request: %s", err)
 	ErrorJSON(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 }
+
+func (app *Application) unauthorizedError(w http.ResponseWriter, r *http.Request, err error) {
+	app.logger.Errorf("unauthorized: %s", err)
+	ErrorJSON(w, http.StatusUnauthorized, "UNAUTHORIZED", err.Error())
+}
