@@ -127,16 +127,16 @@ func (s *UsersStore) GetUsers(ctx context.Context) ([]User, error) {
 
 func (s *UsersStore) GetById(ctx context.Context, id int64) (*User, error) {
 	query := `
-		SELECT users.id, username, email, password, created_at, roles.*
+		SELECT users.id, username, email, password, created_at, is_active, roles.*
 		FROM users
 		JOIN roles ON users.role_id = roles.id
-		WHERE id = $1
+		WHERE users.id = $1
 `
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
 	defer cancel()
 	row := s.db.QueryRowContext(ctx, query, id)
 	user := &User{}
-	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password.hash, &user.CreatedAt, &user.Role.ID, &user.Role.Name, &user.Role.Level, &user.Role.Description)
+	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password.hash, &user.CreatedAt, &user.IsActive, &user.Role.ID, &user.Role.Name, &user.Role.Level, &user.Role.Description)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
