@@ -104,7 +104,7 @@ func (app *Application) mount() http.Handler {
 	r.Route("/v1", func(r chi.Router) {
 
 		r.Get("/health", app.healthCheckHandler)
-		r.With(app.BasicAuthMiddleware()).Get("metrics", expvar.Handler().ServeHTTP)
+		r.With(app.BasicAuthMiddleware()).Get("/metrics", expvar.Handler().ServeHTTP)
 
 		// Relative to the mounted route, so the UI works behind any host or proxy.
 		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/v1/swagger/doc.json")))
