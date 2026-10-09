@@ -53,9 +53,10 @@ type UsersStore struct {
 }
 
 func (s *UsersStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
+	// New users get the 'user' role unless a role id is given
 	query := `
 		INSERT INTO users (username, email, password, role_id)
-		VALUES ($1, $2, $3, $4)
+		VALUES ($1, $2, $3, COALESCE(NULLIF($4, 0), (SELECT id FROM roles WHERE name = 'user')))
 		RETURNING id, created_at
 	`
 
