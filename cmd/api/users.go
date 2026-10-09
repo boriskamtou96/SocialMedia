@@ -148,12 +148,15 @@ func (app *Application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 
 // getUsersHandler godoc
 //
-//	@Summary	List users
-//	@Tags		users
-//	@Produce	json
-//	@Success	200	{object}	Envelope{data=[]store.User}
-//	@Failure	500	{object}	ErrorResponse
-//	@Router		/users [get]
+//	@Summary		List users
+//	@Description	Admin only.
+//	@Tags			users
+//	@Produce		json
+//	@Success		200	{object}	Envelope{data=[]store.User}
+//	@Failure		401	{object}	ErrorResponse
+//	@Failure		403	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/users [get]
 func (app *Application) getUsersHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -348,7 +351,7 @@ type CreateUserTokenPayload struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			payload	body		CreateUserTokenPayload	true	"User credentials"
-//	@Success		200		{object}	TokenResponse
+//	@Success		200		{object}	Envelope{data=map[string]string}
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse

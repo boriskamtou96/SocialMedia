@@ -102,15 +102,17 @@ func (app *Application) getPostHandler(w http.ResponseWriter, r *http.Request) {
 
 // deletePostHandler godoc
 //
-//	@Summary	Delete a post
-//	@Tags		posts
-//	@Produce	json
-//	@Param		postID	path		int	true	"Post ID"
-//	@Success	200		{object}	Envelope{data=map[string]string}
-//	@Failure	400		{object}	ErrorResponse
-//	@Failure	404		{object}	ErrorResponse
-//	@Failure	500		{object}	ErrorResponse
-//	@Router		/posts/{postID} [delete]
+//	@Summary		Delete a post
+//	@Description	Only the post owner or an admin can delete it.
+//	@Tags			posts
+//	@Produce		json
+//	@Param			postID	path		int	true	"Post ID"
+//	@Success		200		{object}	Envelope{data=map[string]string}
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Router			/posts/{postID} [delete]
 func (app *Application) deletePostHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -141,7 +143,7 @@ func (app *Application) deletePostHandler(w http.ResponseWriter, r *http.Request
 // updatePostHandler godoc
 //
 //	@Summary		Update a post
-//	@Description	Only the fields present in the body are modified.
+//	@Description	Only the fields present in the body are modified. Only the post owner, a moderator or an admin can update it.
 //	@Tags			posts
 //	@Accept			json
 //	@Produce		json
@@ -149,6 +151,7 @@ func (app *Application) deletePostHandler(w http.ResponseWriter, r *http.Request
 //	@Param			payload	body		UpdatePostPayload	true	"Fields to update"
 //	@Success		200		{object}	Envelope{data=store.Post}
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/posts/{postID} [patch]

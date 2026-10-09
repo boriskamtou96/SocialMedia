@@ -111,26 +111,43 @@ func (app *Application) AuthTokenMiddleware() func(handler http.Handler) http.Ha
 	}
 }
 
+// checkPostOwnerShip lets the post owner through, otherwise requires at least the given role.
 func (app *Application) checkPostOwnerShip(role string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromContext(r)
-		if user == nil {
-			app.unauthorizedError(w, r, fmt.Errorf("user not found in context"))
+		post := getPostFromCtx(r)
+		if user != nil && post != nil && post.UserID == user.ID {
+			next(w, r)
 			return
 		}
 
-		allowed, err := app.checkRolePrecedence(r.Context(), user, role)
-		if err != nil {
-			app.internalServerError(w, r, err)
-			return
-		}
+		app.RequireRoleMiddleware(role)(next).ServeHTTP(w, r)
+	}
+}
 
-		if !allowed {
-			app.forbiddenResponse(w, r, fmt.Errorf("forbidden"))
-			return
-		}
+// RequireRoleMiddleware requires the authenticated user to have at least the given role.
+func (app *Application) RequireRoleMiddleware(role string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user := getUserFromContext(r)
+			if user == nil {
+				app.unauthorizedError(w, r, fmt.Errorf("user not found in context"))
+				return
+			}
 
-		next(w, r)
+			allowed, err := app.checkRolePrecedence(r.Context(), user, role)
+			if err != nil {
+				app.internalServerError(w, r, err)
+				return
+			}
+
+			if !allowed {
+				app.forbiddenResponse(w, r, fmt.Errorf("forbidden"))
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
