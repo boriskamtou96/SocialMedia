@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const version = "1.0.0"
+
 // @title        Social Media API
 // @version      1.0
 // @description  A social media API built with Go, Chi and PostgreSQL.
@@ -145,7 +147,7 @@ func main() {
 	}
 
 	// Metrics collector
-	expvar.NewString("version").Set("v1")
+	expvar.NewString("version").Set(version)
 	expvar.Publish("goroutines", expvar.Func(func() any {
 		return runtime.NumGoroutine()
 	}))

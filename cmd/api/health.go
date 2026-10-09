@@ -16,7 +16,7 @@ func (app *Application) healthCheckHandler(w http.ResponseWriter, _ *http.Reques
 	data := map[string]string{
 		"status":  "available",
 		"env":     "dev",
-		"version": "1",
+		"version": version,
 	}
 	WriteJSON(w, http.StatusOK, data)
 }

@@ -1,0 +1,43 @@
+name: update-api-version
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # release-please writes "## [1.2.0](compare-url) (date)", or "## 1.0.0 (date)" for the first release
+      - name: Extract latest version from CHANGELOG.md
+        id: get_version
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "No CHANGELOG.md yet, nothing to update"
+            exit 0
+          fi
+          VERSION=$(grep -oP '^## \[?\K[0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | head -1 || true)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update version in cmd/api/main.go
+        if: steps.get_version.outputs.version != ''
+        run: |
+          sed -i "s/^const version = \".*\"/const version = \"${{ steps.get_version.outputs.version }}\"/" cmd/api/main.go
+
+      - name: Commit and push if changed
+        if: steps.get_version.outputs.version != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cmd/api/main.go
+          if git diff --cached --quiet; then
+            echo "Version already up to date"
+            exit 0
+          fi
+          git commit -m "chore: update api version to ${{ steps.get_version.outputs.version }}"
+          git push

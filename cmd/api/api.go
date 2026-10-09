@@ -155,7 +155,7 @@ func (app *Application) mount() http.Handler {
 func (app *Application) run(mux http.Handler) error {
 
 	// docs
-	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Version = version
 	docs.SwaggerInfo.Title = "Social Media API"
 	docs.SwaggerInfo.Description = "A social media API built with Go, Chi and PostgreSQL."
 
