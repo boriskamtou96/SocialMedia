@@ -24,6 +24,8 @@ type User struct {
 	Password  Password `json:"-"`
 	CreatedAt string   `json:"created_at"`
 	IsActive  bool     `json:"is_active"`
+	RoleID    int64    `json:"role_id"`
+	Role      Role     `json:"role"`
 }
 
 type Password struct {
@@ -52,8 +54,8 @@ type UsersStore struct {
 
 func (s *UsersStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 	query := `
-		INSERT INTO users (username, email, password)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (username, email, password, role_id)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at
 	`
 
@@ -66,6 +68,7 @@ func (s *UsersStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 		user.Username,
 		user.Email,
 		user.Password.hash,
+		user.RoleID,
 	).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
 		if pqErr, ok := errors.AsType[*pq.Error](err); ok && pqErr.Code == "23505" {
@@ -124,15 +127,16 @@ func (s *UsersStore) GetUsers(ctx context.Context) ([]User, error) {
 
 func (s *UsersStore) GetById(ctx context.Context, id int64) (*User, error) {
 	query := `
-		SELECT id, username, email, created_at
+		SELECT users.id, username, email, password, created_at, roles.*
 		FROM users
+		JOIN roles ON users.role_id = roles.id
 		WHERE id = $1
 `
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
 	defer cancel()
 	row := s.db.QueryRowContext(ctx, query, id)
 	user := &User{}
-	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.CreatedAt)
+	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password.hash, &user.CreatedAt, &user.Role.ID, &user.Role.Name, &user.Role.Level, &user.Role.Description)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -295,9 +299,9 @@ func (s *UsersStore) delete(ctx context.Context, tx *sql.Tx, id int64) error {
 
 func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, username, email, created_at
+		SELECT id, username, email, password, created_at
 		FROM users
-		WHERE email = $1 AND is_active = true
+		WHERE email = $1
 	`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeOut)
@@ -310,6 +314,7 @@ func (s *UsersStore) GetUserByEmail(ctx context.Context, email string) (*User, e
 		&user.ID,
 		&user.Username,
 		&user.Email,
+		&user.Password.hash,
 		&user.CreatedAt,
 	)
 	if err != nil {

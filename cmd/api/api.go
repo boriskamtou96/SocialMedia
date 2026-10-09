@@ -2,17 +2,21 @@ package main
 
 import (
 	"SocialMedia/internal/auth"
+	"SocialMedia/internal/env"
 	"SocialMedia/internal/mailer"
+	"SocialMedia/internal/ratelimiter"
 	"SocialMedia/internal/store"
+	"SocialMedia/internal/store/cache"
+	"expvar"
 	"net/http"
 	"time"
+
+	"SocialMedia/docs"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"go.uber.org/zap"
-
-	"SocialMedia/docs"
 
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
@@ -20,9 +24,11 @@ import (
 type Application struct {
 	config        Config
 	store         store.Storage
+	cacheStore    cache.Storage
 	logger        *zap.SugaredLogger
 	mailer        mailer.Client
 	authenticator auth.Authenticator
+	rateLimiter   ratelimiter.Limiter
 }
 
 type MailConfig struct {
@@ -42,8 +48,16 @@ type Config struct {
 	mailer      mailer.Client
 	frontendURL string
 	auth        AuthConfig
+	redisCfg    RedisConfig
+	rateLimiter ratelimiter.Config
 }
 
+type RedisConfig struct {
+	address  string
+	password string
+	db       int
+	enable   bool
+}
 type AuthConfig struct {
 	basic BasicAuthConfig
 	token TokenConfig
@@ -72,7 +86,7 @@ func (app *Application) mount() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedOrigins:   []string{env.GetString("CORS_ALLOWED_ORIGIN", "http://localhost:5174")},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -83,11 +97,14 @@ func (app *Application) mount() http.Handler {
 	r.Use(middleware.ClientIPFromRemoteAddr)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(app.RateLimiterMiddleware)
 
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Route("/v1", func(r chi.Router) {
-		r.With(app.BasicAuthMiddleware()).Get("/health", app.healthCheckHandler)
+
+		r.Get("/health", app.healthCheckHandler)
+		r.With(app.BasicAuthMiddleware()).Get("metrics", expvar.Handler().ServeHTTP)
 
 		// Relative to the mounted route, so the UI works behind any host or proxy.
 		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/v1/swagger/doc.json")))
@@ -109,7 +126,6 @@ func (app *Application) mount() http.Handler {
 			r.Group(func(r chi.Router) {
 				r.Use(app.AuthTokenMiddleware())
 				r.Get("/feed", app.getUserFeedHandler)
-
 			})
 		})
 
@@ -121,8 +137,8 @@ func (app *Application) mount() http.Handler {
 				r.Use(app.postsContextMiddleware)
 
 				r.Get("/", app.getPostHandler)
-				r.Delete("/", app.deletePostHandler)
-				r.Patch("/", app.updatePostHandler)
+				r.Delete("/", app.checkPostOwnerShip("admin", app.deletePostHandler))
+				r.Patch("/", app.checkPostOwnerShip("moderator", app.updatePostHandler))
 			})
 		})
 

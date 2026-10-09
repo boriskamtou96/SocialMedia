@@ -23,3 +23,14 @@ func (app *Application) unauthorizedError(w http.ResponseWriter, r *http.Request
 	app.logger.Errorf("unauthorized: %s", err)
 	ErrorJSON(w, http.StatusUnauthorized, "UNAUTHORIZED", err.Error())
 }
+
+func (app *Application) forbiddenResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.logger.Errorf("forbidden: %s", err)
+	ErrorJSON(w, http.StatusForbidden, "FORBIDDEN", err.Error())
+}
+
+func (app *Application) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request, retryAfter string) {
+	app.logger.Warnw("rate limit exceeded: %s", "method", r.Method, "path", r.URL.Path)
+	w.Header().Set("Retry-After", retryAfter)
+	ErrorJSON(w, http.StatusForbidden, "FORBIDDEN", "rate limit exceeded, retry after: "+retryAfter)
+}

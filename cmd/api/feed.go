@@ -2,6 +2,7 @@ package main
 
 import (
 	"SocialMedia/internal/store"
+	"errors"
 	"net/http"
 )
 
@@ -23,6 +24,11 @@ import (
 //	@Failure		500		{object}	ErrorResponse
 //	@Router			/users/feed [get]
 func (app *Application) getUserFeedHandler(w http.ResponseWriter, r *http.Request) {
+	user := getUserFromContext(r)
+	if user == nil {
+		app.unauthorizedError(w, r, errors.New("user not found in context"))
+		return
+	}
 
 	fq := store.PaginatedFeedQuery{
 		Limit:  20,
@@ -42,7 +48,7 @@ func (app *Application) getUserFeedHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	ctx := r.Context()
-	posts, err := app.store.Posts.GetUserFeed(ctx, int64(110), fq)
+	posts, err := app.store.Posts.GetUserFeed(ctx, user.ID, fq)
 	if err != nil {
 		app.internalServerError(w, r, err)
 		return

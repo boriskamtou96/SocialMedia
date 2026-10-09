@@ -5,10 +5,15 @@ import (
 	"SocialMedia/internal/db"
 	"SocialMedia/internal/env"
 	"SocialMedia/internal/mailer"
+	"SocialMedia/internal/ratelimiter"
 	"SocialMedia/internal/store"
+	cache "SocialMedia/internal/store/cache"
+	"expvar"
 	"log"
+	"runtime"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
 )
 
@@ -40,6 +45,12 @@ func main() {
 			maxIdleConn: env.GetInt("DB_MAX_IDLE_CONNS", 25),
 			maxIdleTime: env.GetString("BD_MAX_IDLE_TIME", "15m"),
 		},
+		redisCfg: RedisConfig{
+			address:  env.GetString("REDIS_ADDR", "localhost:6379"),
+			password: env.GetString("REDIS_PASSWORD", ""),
+			db:       env.GetInt("REDIS_DB", 0),
+			enable:   env.GetBool("REDIS_ENABLE", true),
+		},
 		mail: MailConfig{
 			exp:       time.Hour * 24 * 3,
 			fromEmail: env.GetString("FROM_EMAIL", "boriskamtou@gmail.com"),
@@ -59,6 +70,11 @@ func main() {
 				issuer:   env.GetString("JWT_ISSUER", "GopherSocialMedia"),
 				exp:      time.Hour * 24 * 3,
 			},
+		},
+		rateLimiter: ratelimiter.Config{
+			RequestsPerTimeFrame: env.GetInt("RATELIMITER_REQUESTS_COUNT", 20),
+			TimeFrame:            time.Second * 5,
+			Enabled:              env.GetBool("RATE_LIMITER_ENABLED", true),
 		},
 	}
 
@@ -85,9 +101,32 @@ func main() {
 
 	logger.Info("Database connection established...")
 
+	rateLimiter := ratelimiter.NewFixedWindowLimiter(
+		cfg.rateLimiter.RequestsPerTimeFrame,
+		cfg.rateLimiter.TimeFrame,
+	)
+
 	storage := store.NewStorage(database)
 
 	mailer := mailer.NewSendgrid(cfg.mail.sendgrid.apiKey, cfg.mail.fromEmail)
+
+	var rdb *redis.Client
+	if cfg.redisCfg.enable {
+		rdb = cache.NewRedisClient(
+			cfg.redisCfg.address,
+			cfg.redisCfg.password,
+			cfg.redisCfg.db,
+		)
+		defer func() {
+			err := rdb.Close()
+			if err != nil {
+				log.Println(err)
+			}
+		}()
+		logger.Info("Redis client initialized...")
+	} else {
+		logger.Info("Redis client is disabled...")
+	}
 
 	jwtAuthenticator := auth.NewJWTAuthenticator(
 		cfg.auth.token.secret,
@@ -101,7 +140,15 @@ func main() {
 		logger:        logger,
 		mailer:        mailer,
 		authenticator: jwtAuthenticator,
+		cacheStore:    cache.NewRedisStorage(rdb),
+		rateLimiter:   rateLimiter,
 	}
+
+	// Metrics collector
+	expvar.NewString("version").Set("v1")
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
 
 	mux := app.mount()
 	if err := app.run(mux); err != nil {

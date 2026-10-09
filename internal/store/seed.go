@@ -53,6 +53,7 @@ func generateUsers(count int) []*User {
 		users[i] = &User{
 			Username: "",
 			Email:    "",
+			RoleID:   1,
 		}
 		users[i].Username = faker.Username()
 		users[i].Email = faker.Email()

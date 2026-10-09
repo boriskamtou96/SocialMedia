@@ -1,6 +1,7 @@
 package main
 
 import (
+	"SocialMedia/internal/store"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -20,9 +21,8 @@ func (app *Application) BasicAuthMiddleware() func(handler http.Handler) http.Ha
 				app.unauthorizedError(w, r, fmt.Errorf("missing Authorization header"))
 				return
 			}
-			// Parse it -> get the base64
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Basic" {
+			parts := strings.Fields(authHeader)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Basic") {
 				app.unauthorizedError(w, r, fmt.Errorf("invalid Authorization header format"))
 				return
 			}
@@ -63,29 +63,36 @@ func (app *Application) AuthTokenMiddleware() func(handler http.Handler) http.Ha
 				app.unauthorizedError(w, r, fmt.Errorf("missing Authorization header"))
 				return
 			}
-			// Parse it -> get the base64
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Bearer" {
+			parts := strings.Fields(authHeader)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 				app.unauthorizedError(w, r, fmt.Errorf("invalid Authorization header format"))
 				return
 			}
 
 			token := parts[1]
-			// validate the token
 			jwtToken, err := app.authenticator.ValidateToken(token)
 			if err != nil {
 				app.unauthorizedError(w, r, fmt.Errorf("invalid token: %v", err))
 				return
 			}
 
-			claims, _ := jwtToken.Claims.(jwt.MapClaims)
-			userID, err := strconv.ParseInt(fmt.Sprintf("%.f", claims["sub"]), 10, 64)
+			claims, ok := jwtToken.Claims.(jwt.MapClaims)
+			if !ok || claims == nil {
+				app.unauthorizedError(w, r, fmt.Errorf("invalid token claims"))
+				return
+			}
+			subValue, ok := claims["sub"]
+			if !ok {
+				app.unauthorizedError(w, r, fmt.Errorf("missing user ID in token"))
+				return
+			}
+			userID, err := strconv.ParseInt(fmt.Sprintf("%.f", subValue), 10, 64)
 			if err != nil {
 				app.unauthorizedError(w, r, fmt.Errorf("invalid user ID in token"))
 				return
 			}
 			// set the user ID in the request context
-			user, err := app.store.Users.GetById(r.Context(), userID)
+			user, err := app.getUser(r.Context(), userID)
 			if err != nil {
 				app.unauthorizedError(w, r, fmt.Errorf("user not found"))
 				return
@@ -102,4 +109,68 @@ func (app *Application) AuthTokenMiddleware() func(handler http.Handler) http.Ha
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (app *Application) checkPostOwnerShip(role string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user := getUserFromContext(r)
+		if user == nil {
+			app.unauthorizedError(w, r, fmt.Errorf("user not found in context"))
+			return
+		}
+
+		allowed, err := app.checkRolePrecedence(r.Context(), user, role)
+		if err != nil {
+			app.internalServerError(w, r, err)
+			return
+		}
+
+		if !allowed {
+			app.forbiddenResponse(w, r, fmt.Errorf("forbidden"))
+			return
+		}
+
+		next(w, r)
+	}
+}
+
+func (app *Application) checkRolePrecedence(ctx context.Context, user *store.User, roleName string) (bool, error) {
+	role, err := app.store.Roles.GetByName(ctx, roleName)
+	if err != nil {
+		return false, fmt.Errorf("role not found: %v", err)
+	}
+
+	// Implement role precedence logic here
+	return user.Role.Level >= role.Level, nil
+}
+
+func (app *Application) getUser(ctx context.Context, userID int64) (*store.User, error) {
+	user, err := app.cacheStore.Users.Get(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching user from cache: %w", err)
+	}
+	if user == nil {
+		user, err = app.store.Users.GetById(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+		if cacheErr := app.cacheStore.Users.Set(ctx, user); cacheErr != nil {
+			app.logger.Warnw("failed to cache user", "userID", userID, "error", cacheErr)
+		}
+	}
+
+	return user, nil
+}
+
+func (app *Application) RateLimiterMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if app.config.rateLimiter.Enabled {
+			if allow, retryAfter := app.rateLimiter.Allow(r.RemoteAddr); !allow {
+				app.rateLimitExceededResponse(w, r, retryAfter.String())
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

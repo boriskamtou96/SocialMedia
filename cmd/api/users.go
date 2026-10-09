@@ -182,6 +182,10 @@ func (app *Application) getUsersHandler(w http.ResponseWriter, r *http.Request) 
 //	@Router		/users/{userID} [get]
 func (app *Application) getUserByIdHandler(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromContext(r)
+	if user == nil {
+		app.unauthorizedError(w, r, errors.New("user not found in context"))
+		return
+	}
 
 	if err := JsonResponse(w, http.StatusOK, user); err != nil {
 		app.internalServerError(w, r, err)
@@ -383,9 +387,10 @@ func (app *Application) createTokenHandler(w http.ResponseWriter, r *http.Reques
 	claims := jwt.MapClaims{
 		"sub":   user.ID,
 		"email": user.Email,
+		"aud":   app.config.auth.token.audience,
+		"iss":   app.config.auth.token.issuer,
 		"exp":   time.Now().Add(app.config.auth.token.exp).Unix(),
 		"iat":   time.Now().Unix(),
-		"iss":   "SocialMediaApp",
 	}
 	token, err := app.authenticator.GenerateToken(claims)
 	if err != nil {

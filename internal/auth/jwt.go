@@ -17,6 +17,10 @@ func NewJWTAuthenticator(secret, audience, issuer string) *JWTAuthenticator {
 }
 
 func (a JWTAuthenticator) GenerateToken(claims jwt.Claims) (string, error) {
+	if a.secret == "" {
+		return "", jwt.ErrTokenSignatureInvalid
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(a.secret))
 	if err != nil {
@@ -26,14 +30,21 @@ func (a JWTAuthenticator) GenerateToken(claims jwt.Claims) (string, error) {
 }
 
 func (a JWTAuthenticator) ValidateToken(tokenString string) (*jwt.Token, error) {
+	if tokenString == "" {
+		return nil, jwt.ErrTokenMalformed
+	}
 
 	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
+		if a.secret == "" {
+			return nil, jwt.ErrTokenSignatureInvalid
+		}
 		return []byte(a.secret), nil
 	},
 		jwt.WithAudience(a.audience),
 		jwt.WithIssuer(a.issuer),
-		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
 }
