@@ -25,7 +25,7 @@
 
 - 📧 **Registration by invitation:** new users receive an email with an activation link that opens the confirmation page in `web/`.
 - 🔒 **JWT authentication:** log in with email and password to get a token valid for 3 days.
-- 🛡️ **Role-based permissions:** `user`, `moderator` and `admin`. Moderators can edit posts, admins can edit and delete them.
+- 🛡️ **Role-based permissions:** `user`, `moderator` and `admin`. Users manage their own posts, moderators can edit any post, admins can edit and delete any post and list all users.
 - 📝 **Posts:** create, read (with comments), update and delete, with optimistic locking to prevent concurrent overwrites.
 - 👥 **Followers:** follow and unfollow other users.
 - 📰 **Feed:** posts from followed users with pagination, sorting, tag filter, search in titles and content, and date range.
@@ -145,15 +145,15 @@ All routes are prefixed with `/v1`. The Swagger UI documents the request and res
 | `POST` | `/authentication/user` | — | Register and receive an invitation email |
 | `PUT` | `/users/activate/{token}` | — | Activate an account |
 | `POST` | `/authentication/token` | — | Log in and get a JWT |
-| `GET` | `/users` | — | List users |
+| `GET` | `/users` | JWT (admin) | List all users |
 | `GET` | `/users/{userID}` | JWT | Get a user |
 | `PUT` | `/users/{userID}/follow` | JWT | Follow a user |
 | `PUT` | `/users/{userID}/unfollow` | JWT | Unfollow a user |
 | `GET` | `/users/feed` | JWT | Feed (`limit`, `offset`, `sort`, `tags`, `search`, `since`, `until`) |
 | `POST` | `/posts` | JWT | Create a post |
 | `GET` | `/posts/{postID}` | JWT | Get a post with its comments |
-| `PATCH` | `/posts/{postID}` | JWT (moderator or admin) | Update a post |
-| `DELETE` | `/posts/{postID}` | JWT (admin) | Delete a post |
+| `PATCH` | `/posts/{postID}` | JWT (owner, moderator or admin) | Update a post |
+| `DELETE` | `/posts/{postID}` | JWT (owner or admin) | Delete a post |
 
 Send the JWT in the `Authorization: Bearer <token>` header.
 
