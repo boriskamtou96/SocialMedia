@@ -1,0 +1,24 @@
+# Secrets and local config
+.envrc
+.env*
+
+# VCS, CI and editor files
+.git
+.github
+.idea
+.DS_Store
+
+# Local build output and air config
+bin
+tmp
+.air.toml
+
+# Frontend is deployed separately
+web
+
+# Not needed to build the API
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+CHANGELOG.md
